@@ -426,9 +426,9 @@ def ARIMA_CV_SCORE(series,order = (1,0,0),start_point = 10,custom_scorer=None):
     errors = np.array(errors)
     
     if custom_score:
-        return {'mean_error':errors.mean(), 'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df,'custom_scores':np.array(custom_scores)}
+        return {'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df,'custom_scores':np.array(custom_scores)}
     
-    return {'mean_error':errors.mean(), 'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df}
+    return {'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df}
 
 
 ######################################################################################################
@@ -456,6 +456,18 @@ def elliptic_paraboloid_loss_obj(B_vec, x_mat, y_obs,c_diff_sign = 8,c_same_sign
     y_obs = y_obs.reshape(n,1)
 
     return elliptic_paraboloid_loss(np.matmul(x_mat,B_vec),y_obs,c_diff_sign,c_same_sign).sum()
+
+######################################################################################################
+
+def compute_n_simple_return(df,n=1,col_name = 'VWAP'):
+    # computes the lookahead return n periods from now
+    if n==1:
+        ret_col_name = col_name + '_ret_la'
+    else:
+        ret_col_name = col_name + '_ret_la_'+str(n)
+    
+    df[ret_col_name] = (df[col_name].shift(-n)/df[col_name]) - 1
+    return df    
 
 
 if __name__ == '__main__':
