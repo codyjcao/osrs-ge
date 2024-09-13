@@ -399,9 +399,6 @@ def rolling_betas(item_id,window_size = 30,interval='24h',plot=False):
         plt.show()
     
     return res
-    
-rolling_betas(11284,plot=True)
-
 
 
 if __name__ == '__main__':
