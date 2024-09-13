@@ -400,6 +400,63 @@ def rolling_betas(item_id,window_size = 30,interval='24h',plot=False):
     
     return res
 
+######################################################################################################
+
+
+from statsmodels.tsa.arima.model import ARIMA
+
+def ARIMA_CV_SCORE(series,order = (1,0,0),start_point = 10,custom_scorer=None):
+    # custom_scorer is a function that takes in two variables and returns a single scalar value
+    custom_score = custom_scorer is not None
+    errors = []
+    conv_issues = []
+    preds = []
+    custom_scores = []
+    for k in range(start_point,series.shape[0]-1):
+        model = ARIMA(series.iloc[:k],order=order)
+        model_fit = model.fit(method_kwargs={'maxiter':100})
+        pred = (model_fit.forecast()).values[0]
+        obs = series.iloc[k+1]
+        errors.append(pred - obs)
+        preds.append(pred)
+        if custom_score:
+            custom_scores.append(custom_scorer(pred,obs))
+        #print(k)
+    ret_df = pd.DataFrame(index = series.index[start_point:-1],data = {'Pred':preds,'Real':series.iloc[start_point:-1]})
+    errors = np.array(errors)
+    
+    if custom_score:
+        return {'mean_error':errors.mean(), 'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df,'custom_scores':np.array(custom_scores)}
+    
+    return {'mean_error':errors.mean(), 'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df}
+
+
+######################################################################################################
+
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+
+def elliptic_paraboloid_loss(x, y, c_diff_sign=4, c_same_sign=0.1):
+    # Compute a rotated elliptic parabaloid.
+    t = np.pi / 4
+    x_rot = (x * np.cos(t)) + (y * np.sin(t))
+    y_rot = (x * -np.sin(t)) + (y * np.cos(t))
+    z = ((x_rot**2) / c_diff_sign) + ((y_rot**2) / c_same_sign) 
+
+    return(z)
+
+def elliptic_paraboloid_loss_obj(B_vec, x_mat, y_obs,c_diff_sign = 8,c_same_sign = 2):
+    # x_mat is nxp
+    # B_mat is px1
+    # y_obs is nx1
+    n = x_mat.shape[0]
+    p = x_mat.shape[1]
+
+    B_vec = B_vec.reshape(p,1)
+    y_obs = y_obs.reshape(n,1)
+
+    return elliptic_paraboloid_loss(np.matmul(x_mat,B_vec),y_obs,c_diff_sign,c_same_sign).sum()
+
 
 if __name__ == '__main__':
     ####
