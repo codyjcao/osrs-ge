@@ -4,6 +4,8 @@ import json
 import os
 import re
 
+import matplotlib.pyplot as plt
+
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -198,8 +200,12 @@ def read_item_master_file(item_id,interval='24h',create = True):
         print('Specify create = True to create file')
         return None
     print("File read successfully for {0}".format(file_path))
-    df['date'] = pd.to_datetime(df['date'])
+    df['date'] = pd.to_datetime(df['timestamp'],unit='s')
+    
     df.index = df.date
+
+    df.index.freq = df.index.inferred_freq
+    
     return df.drop('date',axis=1)
 
 
@@ -399,6 +405,106 @@ def rolling_betas(item_id,window_size = 30,interval='24h',plot=False):
         plt.show()
     
     return res
+
+######################################################################################################
+
+
+from statsmodels.tsa.arima.model import ARIMA
+
+def ARIMA_CV_SCORE(series,order = (1,0,0),start_point = 10,custom_scorer=None):
+    # custom_scorer is a function that takes in two variables and returns a single scalar value
+    custom_score = custom_scorer is not None
+    errors = []
+    conv_issues = []
+    preds = []
+    custom_scores = []
+    for k in range(start_point,series.shape[0]-1):
+        model = ARIMA(series.iloc[:k],order=order)
+        model_fit = model.fit(method_kwargs={'maxiter':100})
+        pred = (model_fit.forecast()).values[0]
+        obs = series.iloc[k+1]
+        errors.append(pred - obs)
+        preds.append(pred)
+        if custom_score:
+            custom_scores.append(custom_scorer(pred,obs))
+        #print(k)
+    ret_df = pd.DataFrame(index = series.index[start_point:-1],data = {'Pred':preds,'Real':series.iloc[start_point:-1]})
+    errors = np.array(errors)
+    
+    if custom_score:
+        return {'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df,'custom_scores':np.array(custom_scores)}
+    
+    return {'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df}
+
+
+######################################################################################################
+
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+
+def elliptic_paraboloid_loss(x, y, c_diff_sign=4, c_same_sign=0.1):
+    # Compute a rotated elliptic parabaloid.
+    t = np.pi / 4
+    x_rot = (x * np.cos(t)) + (y * np.sin(t))
+    y_rot = (x * -np.sin(t)) + (y * np.cos(t))
+    z = ((x_rot**2) / c_diff_sign) + ((y_rot**2) / c_same_sign) 
+
+    return(z)
+
+def elliptic_paraboloid_loss_obj(B_vec, x_mat, y_obs,c_diff_sign = 8,c_same_sign = 2):
+    # x_mat is nxp
+    # B_mat is px1
+    # y_obs is nx1
+    n = x_mat.shape[0]
+    p = x_mat.shape[1]
+
+    B_vec = B_vec.reshape(p,1)
+    y_obs = y_obs.reshape(n,1)
+
+    return elliptic_paraboloid_loss(np.matmul(x_mat,B_vec),y_obs,c_diff_sign,c_same_sign).sum()
+
+######################################################################################################
+
+def compute_n_simple_return(df,n=1,col_name = 'VWAP'):
+    # computes the lookahead return n periods from now
+    if n==1:
+        ret_col_name = col_name + '_ret_la'
+    else:
+        ret_col_name = col_name + '_ret_la_'+str(n)
+    
+    df[ret_col_name] = (df[col_name].shift(-n)/df[col_name]) - 1
+    return df    
+
+######################################################################################################
+
+def trading_strategy(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade'):
+    # df should have the signal and VWAP columns already
+    inv = 0
+    stack = start_stack
+    
+    trading_history = pd.DataFrame()
+    
+    for idx,row in df.iterrows():
+        if row[signal_column] == 1 and inv < max_allowable:  # buy signal and we are not at inventory capacity
+            stack -= row[price_column]
+            inv += 1
+        elif row[signal_column] == -1 and inv > 0:       # sell signal and we have positive inventory
+            stack += row[price_column]
+            inv -= 1
+        else:
+            pass
+        
+        trading_history.loc[idx,'inventory'] = inv
+        trading_history.loc[idx,'stack'] = stack
+        trading_history.loc[idx,'total_portfolio'] = stack + inv*row[price_column]
+    
+    trading_history['total_portfolio'].plot()
+    plt.grid()
+    plt.title('Portfolio value + GP')
+    plt.show()
+
+    return trading_history
+
 
 
 if __name__ == '__main__':
