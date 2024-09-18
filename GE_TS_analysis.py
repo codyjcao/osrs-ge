@@ -138,8 +138,9 @@ orders = [order1,order2]
 q_s = .35 # sell if signal is below 35th percentile
 q_b = .65 # buy if signal is above 65th percentile
 
-# can hold max of 2 logs
-inv_limit = 2
+# inventory limit, might be some cleverer way of auto-setting this depending
+# on the actual price of the item
+inv_limit = 500
 
 # print out the thresholds 
 for order in orders:
