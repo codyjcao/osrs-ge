@@ -26,8 +26,10 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 item_id = 6332
 freq = '24h'
-train_test_split_ratio = .7
+train_test_split_ratio = .7 # create train test split using 70% for training
 
+print('Conducting analysis for {0} at interval length {1}'.format(
+    osrs_GE.item_name_from_id(item_id),freq))
 
 df = osrs_GE.read_item_master_file(item_id,freq)
 df.index = pd.DatetimeIndex(df.index.values,freq=df.index.inferred_freq)
@@ -35,7 +37,7 @@ df = osrs_GE.compute_VWAP(df)
 
 df['simpRet'] = (df['VWAP']/df['VWAP'].shift(1))-1
 
-# create train test split using 70% for training
+
 df = df.dropna()
 train_idx = int(train_test_split_ratio*df.index.shape[0])
 
@@ -163,4 +165,4 @@ for order in orders:
     display(pd.DataFrame(confusion_matrix(df_res['actual'],df_res['signal']),
                         index = [-1,0,1],columns=[-1,0,1]))
     
-    osrs_GE.trading_strategy(df_res,2)
+    pnl_result = osrs_GE.trading_strategy(df_res,inv_limit)
