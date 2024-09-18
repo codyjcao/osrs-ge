@@ -4,6 +4,8 @@ import json
 import os
 import re
 
+import matplotlib.pyplot as plt
+
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -198,8 +200,12 @@ def read_item_master_file(item_id,interval='24h',create = True):
         print('Specify create = True to create file')
         return None
     print("File read successfully for {0}".format(file_path))
-    df['date'] = pd.to_datetime(df['date'])
+    df['date'] = pd.to_datetime(df['timestamp'],unit='s')
+    
     df.index = df.date
+
+    df.index.freq = df.index.inferred_freq
+    
     return df.drop('date',axis=1)
 
 
@@ -468,6 +474,37 @@ def compute_n_simple_return(df,n=1,col_name = 'VWAP'):
     
     df[ret_col_name] = (df[col_name].shift(-n)/df[col_name]) - 1
     return df    
+
+######################################################################################################
+
+def trading_strategy(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade'):
+    # df should have the signal and VWAP columns already
+    inv = 0
+    stack = start_stack
+    
+    trading_history = pd.DataFrame()
+    
+    for idx,row in df.iterrows():
+        if row[signal_column] == 1 and inv < max_allowable:  # buy signal and we are not at inventory capacity
+            stack -= row[price_column]
+            inv += 1
+        elif row[signal_column] == -1 and inv > 0:       # sell signal and we have positive inventory
+            stack += row[price_column]
+            inv -= 1
+        else:
+            pass
+        
+        trading_history.loc[idx,'inventory'] = inv
+        trading_history.loc[idx,'stack'] = stack
+        trading_history.loc[idx,'total_portfolio'] = stack + inv*row[price_column]
+    
+    trading_history['total_portfolio'].plot()
+    plt.grid()
+    plt.title('Portfolio value + GP')
+    plt.show()
+
+    return trading_history
+
 
 
 if __name__ == '__main__':
