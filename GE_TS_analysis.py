@@ -136,9 +136,9 @@ order2 = cur_min_order
 orders = [order1,order2]
 
 
-# define the quantiles for trading signal
-q_s = .35 # sell if signal is below 35th percentile
-q_b = .65 # buy if signal is above 65th percentile
+# define the thresholds for the trading signal?
+# find a way to automatically set the thresholds based on the volatility of the product
+Q_s, Q_b = (-.005,.005)
 
 # inventory limit, might be some cleverer way of auto-setting this depending
 # on the actual price of the item
@@ -152,7 +152,7 @@ for order in orders:
 for order in orders:
     print(order)
     df_res = res[order]['ret_df']
-    Q_s, Q_b = df_res['Pred'].quantile([q_s,q_b])
+    
     df_res['signal'] = 1*(df_res['Pred'] >= Q_b) - 1*(df_res['Pred'] <= Q_s)
     df_res['actual'] = 1*(df_res['Real'] >= Q_b) - 1*(df_res['Real'] <= Q_s)
 
@@ -163,6 +163,10 @@ for order in orders:
     df_res.index = df_res.index.shift(-1,df_res.index.inferred_freq)
 
     display(pd.DataFrame(confusion_matrix(df_res['actual'],df_res['signal']),
-                        index = [-1,0,1],columns=[-1,0,1]))
+                        index = ['sell','hold','buy'],columns=['sell','hold','buy']))
     
-    pnl_result = osrs_GE.trading_strategy(df_res,inv_limit)
+    pnl_result = osrs_GE.trading_strategy_pnler(df_res,inv_limit,start_stack = start_stack)
+
+    print("Total PnL: {}".format((pnl_result.tail(1)['total_portfolio'].values[0] - start_stack).round()))
+    print("Final inventory: {}".format(int(pnl_result.tail(1)['inventory'].values[0])))
+    print('\n')

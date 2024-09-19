@@ -477,10 +477,12 @@ def compute_n_simple_return(df,n=1,col_name = 'VWAP'):
 
 ######################################################################################################
 
-def trading_strategy(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade'):
+def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade',tax_rate = .01):
     # df should have the signal and VWAP columns already
     inv = 0
     stack = start_stack
+
+    eff_sale_mult = 1 - tax_rate
     
     trading_history = pd.DataFrame()
     
@@ -489,7 +491,7 @@ def trading_strategy(df,max_allowable = 2,start_stack = 0, signal_column = 'sign
             stack -= row[price_column]
             inv += 1
         elif row[signal_column] == -1 and inv > 0:       # sell signal and we have positive inventory
-            stack += row[price_column]
+            stack += row[price_column]*eff_sale_mult
             inv -= 1
         else:
             pass
