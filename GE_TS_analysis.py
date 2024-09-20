@@ -138,15 +138,11 @@ orders = [order1,order2]
 
 # define the thresholds for the trading signal?
 # find a way to automatically set the thresholds based on the volatility of the product
-Q_s, Q_b = (-.005,.005)
+Q_s, Q_b = (-.0075,.005)
 
 # inventory limit, might be some cleverer way of auto-setting this depending
 # on the actual price of the item
 inv_limit = 500
-
-# print out the thresholds 
-for order in orders:
-    print(order,'\n', res[order]['ret_df'].quantile([q_s,q_b]),'\n')
     
 
 for order in orders:
