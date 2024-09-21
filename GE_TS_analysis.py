@@ -138,6 +138,7 @@ orders = [order1,order2]
 
 # define the thresholds for the trading signal?
 # find a way to automatically set the thresholds based on the volatility of the product
+# or based on the training data calibrated to the test set?
 Q_s, Q_b = (-.0075,.005)
 
 # inventory limit, might be some cleverer way of auto-setting this depending
