@@ -110,7 +110,6 @@ for key in res:
           'MSE = {}'.format(((res[key]['errors'])**2).mean().round(7)))
     
 
-
 # finding the 1st order
 cur_min = 1e6
 cur_min_order=None
@@ -118,7 +117,8 @@ for key in res.keys():
     if res[key]['custom_scores'].mean() < cur_min:
         cur_min = res[key]['custom_scores'].mean()
         cur_min_order = key
-        
+
+
 order1 = cur_min_order
 
 # finding the 2nd order
@@ -143,8 +143,7 @@ Q_s, Q_b = (-.0075,.005)
 
 # inventory limit, might be some cleverer way of auto-setting this depending
 # on the actual price of the item
-inv_limit = 500
-    
+inv_limit = 500    
 
 for order in orders:
     print(order)
