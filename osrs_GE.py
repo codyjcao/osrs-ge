@@ -40,7 +40,19 @@ item_name_from_id = lambda x: items.lookup_by_item_id(x).name
 
 ####################################################################################
 
-
+def search_item_id():
+    search_term = input("Enter search term: ")
+    results = []
+    for item_name in MAST_ITEM_DF['name'].values:
+        if search_term.lower() in item_name.lower():
+            results.append((item_name,MAST_ITEM_DF.index[MAST_ITEM_DF['name'] == item_name]))
+    
+    if results:
+        print("Search results:")
+        for result in results:
+            print(result)
+    else:
+        print("No results found.")
 
 ####################################################################################
 
@@ -227,19 +239,7 @@ def update_all_items(directory = 'Master Files/items'):
             id = int(id)
             update_item_master_file(id,interval,return_df=False)
 
-def search_item_id():
-    search_term = input("Enter search term: ")
-    results = []
-    for item_name in MAST_ITEM_DF['name'].values:
-        if search_term.lower() in item_name.lower():
-            results.append((item_name,MAST_ITEM_DF.index[MAST_ITEM_DF['name'] == item_name]))
-    
-    if results:
-        print("Search results:")
-        for result in results:
-            print(result)
-    else:
-        print("No results found.")
+
 
 #####################################################################
 # Price features for 
@@ -293,6 +293,55 @@ def compute_MACD(df,st_n = 4,lt_n = 10,drop_ema_cols = False,col_name = 'VWAP',*
     if drop_ema_cols:
         return df.drop([st_ema_col_name, lt_ema_col_name],axis=1)
     
+    return df
+
+
+def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16, drop_cols = True):
+    '''
+    returns dataframe with the following features:
+        lagged returns
+        RSI
+        OI/OI_ratio: order imbalance
+        Spread
+        SpreadPct
+        CM (Cross Metric)
+        VWAP/VWAP_EMA: as determined by the MACD short/long parameters
+    '''
+    
+    ##### Lagged returns
+    for k in range(1,lagged_rets+1):
+        df['simpRet_'+str(k)] = df['simpRet_y'].shift(k)
+    
+    ##### RSI
+    df = compute_RSI(df,window = RSI_window,col_name = 'VWAP')
+    
+    ##### Order Imbalance
+    df['OI'] = df['highPriceVolume'] -  df['lowPriceVolume']
+    df['OI*'] = df['OI']*((df['avgHighPrice'] > df['avgLowPrice'])*1 - (df['avgHighPrice'] < df['avgLowPrice']))
+    df['OI_ratio'] = df['OI']/(df['highPriceVolume'] + df['lowPriceVolume'])
+    
+    
+    ##### Spread
+    df['Spread'] = df['avgHighPrice'] - df['avgLowPrice']
+    df['SpreadPct'] = df['Spread']/df['VWAP']
+    
+    
+    ##### "Cross Metric" - interaction between the OI and the actively traded price spread
+    df['CM'] = df['SpreadPct']*df['OI']
+    
+    
+    ##### MACD
+    df = compute_MACD(df,st_n=MACD_short,lt_n=MACD_long, drop_ema_cols = False)
+    df['VWAP/ema'+str(MACD_short)] = df['VWAP']/df['VWAP_ema'+str(MACD_short)]
+    df['VWAP/ema'+str(MACD_long)] = df['VWAP']/df['VWAP_ema'+str(MACD_long)]
+    df['VWAP_nMACD_{0}_{1}'.format(MACD_short,MACD_long)] = df['VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)]/df['VWAP']
+
+    
+    if drop_cols:
+        df = df.drop(['timestamp','avgHighPrice','avgLowPrice','highPriceVolume',
+                'lowPriceVolume','VWAP','VWAP_diff','OI*','Spread','VWAP_ema'+str(MACD_short),
+                'VWAP_ema'+str(MACD_long),'VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)],axis=1)
+
     return df
 
 
@@ -410,9 +459,16 @@ def rolling_betas(item_id,window_size = 30,interval='24h',plot=False):
 
 
 from statsmodels.tsa.arima.model import ARIMA
+import warnings
+from statsmodels.tools.sm_exceptions import ConvergenceWarning
+warnings.simplefilter('ignore', ConvergenceWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+
 
 def ARIMA_CV_SCORE(series,order = (1,0,0),start_point = 10,custom_scorer=None):
     # custom_scorer is a function that takes in two variables and returns a single scalar value
+
+    
     custom_score = custom_scorer is not None
     errors = []
     conv_issues = []
@@ -477,7 +533,7 @@ def compute_n_simple_return(df,n=1,col_name = 'VWAP'):
 
 ######################################################################################################
 
-def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade',tax_rate = .01):
+def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade',tax_rate = .01,plot=True):
     # df should have the signal and VWAP columns already
     inv = 0
     stack = start_stack
@@ -499,13 +555,16 @@ def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column =
         trading_history.loc[idx,'inventory'] = inv
         trading_history.loc[idx,'stack'] = stack
         trading_history.loc[idx,'total_portfolio'] = stack + inv*row[price_column]
-    
-    trading_history['total_portfolio'].plot()
-    plt.grid()
-    plt.title('Portfolio value + GP')
-    plt.show()
+
+    if plot:
+        trading_history['total_portfolio'].plot()
+        plt.grid()
+        plt.title('Portfolio value + GP')
+        plt.show()
 
     return trading_history
+
+######################################################################################################
 
 
 
