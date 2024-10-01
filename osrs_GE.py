@@ -306,6 +306,7 @@ def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16, d
         SpreadPct
         CM (Cross Metric)
         VWAP/VWAP_EMA: as determined by the MACD short/long parameters
+        MA: moving average
     '''
     
     ##### Lagged returns
@@ -467,7 +468,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 def ARIMA_CV_SCORE(series,order = (1,0,0),start_point = 10,custom_scorer=None):
     # custom_scorer is a function that takes in two variables and returns a single scalar value
-
     
     custom_score = custom_scorer is not None
     errors = []
@@ -561,11 +561,10 @@ def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column =
         plt.grid()
         plt.title('Portfolio value + GP')
         plt.show()
-
+    
     return trading_history
 
 ######################################################################################################
-
 
 
 if __name__ == '__main__':
