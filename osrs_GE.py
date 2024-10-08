@@ -113,6 +113,10 @@ def read_CTI_master_file(interval='24h',create=True):
     df.index = df.index.set_levels(pd.DatetimeIndex(df.index.levels[1].values,
                                                     freq=df.index.levels[1].inferred_freq),level=1)
     df.drop(['id','date'],axis=1,inplace=True)
+    
+    #### when there is no volume at the low price or high price
+    df = df.fillna(0)
+    
     df = df.sort_index()
     if save:
         df.to_csv(filepath)
@@ -231,13 +235,13 @@ def check(df):
 
 
 def update_all_items(directory = 'Master Files/items'):
-    dir = directory
-    for filename in os.listdir(dir):
-        f = os.path.join(dir,filename)
+    dir_ = directory
+    for filename in os.listdir(dir_):
+        f = os.path.join(dir_,filename)
         if os.path.isfile(f):
-            id,interval = re.split("\W+|_",f)[-3:-1]
-            id = int(id)
-            update_item_master_file(id,interval,return_df=False)
+            id_,interval = re.split("\W+|_",f)[-3:-1]
+            id_ = int(id_)
+            update_item_master_file(id_,interval,return_df=False)
 
 
 
@@ -245,8 +249,11 @@ def update_all_items(directory = 'Master Files/items'):
 # Price features for 
 ## VWAP
 def compute_VWAP(df,high_p_name = 'avgHighPrice',low_p_name = 'avgLowPrice',low_v_name = 'lowPriceVolume', high_v_name = 'highPriceVolume'):
-    df['VWAP'] = ((df['avgHighPrice'] * df['highPriceVolume'] + df['avgLowPrice'] * df['lowPriceVolume'])/
-                 (df['highPriceVolume']+df['lowPriceVolume']))
+    df['VWAP'] = ((df[high_p_name] * df[high_v_name] + df[low_p_name] * df[low_v_name])/
+                 (df[high_v_name] + df[low_v_name]))
+
+    
+    
     return df
 
 ## Moving averages
@@ -408,17 +415,26 @@ def compute_betas(df,n,print_missing=False,print_errors=False):
     
     if type(df.index) == pd.core.indexes.multi.MultiIndex:
         CTI_idx = compute_CTI(df = df)
+        
         CTI_idx_ret = (CTI_idx/CTI_idx.shift(1)) - 1
-        #start_date = df.groupby('id')['simpRet'].agg(latest = lambda x:x.index.levels[1].max()).min().values[0] - pd.Timedelta(n,'D')
+        
         df_fltr = df[df.index.get_level_values(1) >= start_date]
+        
         CTI_idx_ret = CTI_idx_ret[CTI_idx_ret.index >= start_date]
+        
         nrows = df_fltr.groupby('id')['simpRet'].agg(nrow=lambda x:x.shape[0])
+        
         max_days = nrows.max().values[0]
+        
         if print_missing:
             print(nrows[nrows['nrow']!= max_days])
+        
         res = df_fltr.groupby('id')['simpRet'].agg(beta = lambda x:_compute_beta(x,CTI_idx_ret,print_errors))
+        
         res['name'] = pd.Series(res.index.values).apply(item_name_from_id).values
+        
         res = (res.rename({'beta':'beta_'+str(n)},axis=1)).sort_values(by='beta_'+str(n))
+        
     else:
         CTI_idx = compute_CTI()
         CTI_idx_ret = (CTI_idx/CTI_idx.shift(1)) - 1
@@ -448,6 +464,7 @@ def rolling_betas(item_id,window_size = 30,interval='24h',plot=False):
     df = pd.DataFrame({'CTI_ret':CTI_idx_ret,str(item_id)+'_ret':item_ret_series}).dropna()
     rolling = df[['CTI_ret']].rolling(window=window_size,min_periods=window_size)
     res = ((rolling.cov(df[str(item_id)+'_ret']))/rolling.var()).dropna().rename({'CTI_ret':'beta_'+str(window_size)},axis=1)
+    
     if plot:
         res.plot()
         plt.grid()
@@ -565,7 +582,6 @@ def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column =
     return trading_history
 
 ######################################################################################################
-
 
 if __name__ == '__main__':
     ####
