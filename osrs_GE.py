@@ -510,6 +510,92 @@ def ARIMA_CV_SCORE(series,order = (1,0,0),start_point = 10,custom_scorer=None):
     return {'errors':errors, 'abs_errors':abs(errors),'ret_df':ret_df}
 
 
+from sklearn.base import clone
+
+def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True, decay_weight=None):
+    # df is dataframe with all of the predictor variables + response variable
+    # specify the name of the response variable column into y_col
+    
+    X_tr = df.drop(y_col,axis=1).values
+    y_tr = df[y_col].values
+    feature_shape = X_tr.shape[1]
+    start_point = max(feature_shape+5,start_point)
+    errors = []
+    preds = []
+    obs = []
+    index = []
+
+    # Initialize first training set up to 'start_point'
+    _X = X_tr[:start_point]
+    _y = y_tr[:start_point]
+    
+    def generate_sample_weights(N, decay_rate=decay_weight):
+        # Generate exponentially decaying weights, with more recent data having higher weights
+        weights = np.array([decay_rate ** (N - i - 1) for i in range(N)])
+        # Normalize the weights so they sum to 1
+        weights /= weights.sum()
+        
+        return weights
+
+    
+    for i in range(start_point,X_tr.shape[0]-1):
+        # train on data up to i-1
+        _X = np.vstack([_X, X_tr[i]])
+        _y = np.append(_y, y_tr[i])
+
+        # Generate weights if decay_weight is provided
+        if decay_weight is not None:
+            weights = generate_sample_weights(_X.shape[0],decay_rate=decay_weight)
+        else:
+            weights = [1]*_X.shape[0] # Equal weights
+
+        # Fit the model on the updated training data
+        model_fit = clone(model).fit(_X,_y,sample_weight = weights)
+        
+        # predict i
+        x_predict = X_tr[[i]]
+        y_hat = model_fit.predict(x_predict)[0]
+        y_obs = y_tr[i]
+        
+        # record errors
+        errors.append(y_obs - y_hat)
+        preds.append(y_hat)
+        obs.append(y_obs)
+        
+        index.append(df.index[i])
+    
+    df_err = pd.DataFrame({'errors': errors,
+                           'predicted': preds,
+                           'observed': obs}, index=index)
+    
+    if plot:
+        fig, axs = plt.subplots(3, 1, figsize=(8, 15))
+        
+        df_err[['predicted', 'observed']].plot(ax=axs[0])
+        axs[0].set_ylabel("% return")
+        axs[0].set_title('Predicted vs. Actual returns over time')
+        axs[0].grid()
+        
+        df_err.plot(x='predicted', y='observed', style='o', ax=axs[1])
+        axs[1].set_xlabel('Predicted returns')
+        axs[1].set_ylabel('Actual returns')
+        axs[1].set_title('Predicted vs. Actual returns')
+        axs[1].grid()
+    
+        df_err.plot(x='observed', y='errors', style='o', ax=axs[2])
+        axs[2].set_xlabel('Actual returns')
+        axs[2].set_ylabel('Prediction error')
+        axs[2].set_title('Error vs. Actual returns')
+        axs[2].grid()
+    
+        plt.tight_layout()
+        plt.show()
+    
+    reg_eploss = eploss(df_err['predicted'],df_err['observed']).mean()
+    reg_mse = (df_err['errors']**2).mean()
+    print("Mean EPLoss: ", reg_eploss)
+    print("MSE: ", reg_mse)
+    return df_err
 ######################################################################################################
 
 from mpl_toolkits.mplot3d import Axes3D
@@ -574,10 +660,12 @@ def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column =
         trading_history.loc[idx,'total_portfolio'] = stack + inv*row[price_column]
 
     if plot:
-        trading_history['total_portfolio'].plot()
+        trading_history['cash'] = trading_history['stack']
+        trading_history['inventory_value'] = trading_history['inventory'] * df[price_column]
+        
+        trading_history[['total_portfolio', 'cash', 'inventory_value']].plot()
         plt.grid()
-        plt.title('Portfolio value + GP')
-        plt.show()
+        plt.title('Portfolio, Cash, and Inventory Value Over Time')
     
     return trading_history
 
