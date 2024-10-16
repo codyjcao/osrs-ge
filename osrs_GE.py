@@ -5,10 +5,10 @@ import os
 import re
 
 import matplotlib.pyplot as plt
-
 import pandas as pd
 import numpy as np
 from datetime import datetime
+
 from osrsbox import items_api
 
 ####################################################################################
@@ -103,7 +103,7 @@ def read_CTI_master_file(interval='24h',create=True):
                 df = pd.concat([df,price_history])
             save = True
         else:
-            print("Returning nothing, specify create == True to create dataframe from scratch")
+            print("Returning nothing, specify create = True to create dataframe from scratch")
             return None
     except:
         print("Something went wrong")
@@ -512,6 +512,14 @@ def ARIMA_CV_SCORE(series,order = (1,0,0),start_point = 10,custom_scorer=None):
 
 from sklearn.base import clone
 
+def generate_sample_weights(N, decay_rate=0.9):
+    # Generate exponentially decaying weights, with more recent data having higher weights
+    weights = np.array([decay_rate ** (N - i - 1) for i in range(N)])
+    # Normalize the weights so they sum to 1
+    weights /= weights.sum()
+    
+    return weights
+
 def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True, decay_weight=None):
     # df is dataframe with all of the predictor variables + response variable
     # specify the name of the response variable column into y_col
@@ -528,15 +536,6 @@ def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True
     # Initialize first training set up to 'start_point'
     _X = X_tr[:start_point]
     _y = y_tr[:start_point]
-    
-    def generate_sample_weights(N, decay_rate=decay_weight):
-        # Generate exponentially decaying weights, with more recent data having higher weights
-        weights = np.array([decay_rate ** (N - i - 1) for i in range(N)])
-        # Normalize the weights so they sum to 1
-        weights /= weights.sum()
-        
-        return weights
-
     
     for i in range(start_point,X_tr.shape[0]-1):
         # train on data up to i-1
@@ -591,7 +590,7 @@ def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True
         plt.tight_layout()
         plt.show()
     
-    reg_eploss = eploss(df_err['predicted'],df_err['observed']).mean()
+    reg_eploss = elliptic_paraboloid_loss(df_err['predicted'],df_err['observed']).mean()
     reg_mse = (df_err['errors']**2).mean()
     print("Mean EPLoss: ", reg_eploss)
     print("MSE: ", reg_mse)
