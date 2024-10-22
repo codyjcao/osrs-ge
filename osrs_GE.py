@@ -634,7 +634,7 @@ def compute_n_simple_return(df,n=1,col_name = 'VWAP'):
     return df    
 
 ######################################################################################################
-
+'''
 def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade',tax_rate = .01,plot=True):
     # df should have the signal and VWAP columns already
     inv = 0
@@ -666,6 +666,51 @@ def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column =
         plt.grid()
         plt.title('Portfolio, Cash, and Inventory Value Over Time')
     
+    return trading_history
+'''
+
+def trading_strategy_pnler(df, max_allowable=2, start_stack=0, signal_column='signal', price_column='VWAP_trade', tax_rate=.01, plot=True):
+    # df should have the signal and VWAP columns already
+    inv = 0
+    stack = start_stack
+
+    eff_sale_mult = 1 - tax_rate
+    trading_history = pd.DataFrame()
+
+    for idx, row in df.iterrows():
+        if row[signal_column] == 1 and inv < max_allowable:  # buy signal and we are not at inventory capacity
+            stack -= row[price_column]
+            inv += 1
+        elif row[signal_column] == -1 and inv > 0:  # sell signal and we have positive inventory
+            stack += row[price_column] * eff_sale_mult
+            inv -= 1
+        else:
+            pass
+
+        trading_history.loc[idx, 'inventory'] = inv
+        trading_history.loc[idx, 'stack'] = stack
+        trading_history.loc[idx, 'total_portfolio'] = stack + inv * row[price_column]
+
+    if plot:
+        # Create columns for cash and inventory value
+        trading_history['cash'] = trading_history['stack']
+        trading_history['inventory_value'] = trading_history['inventory'] * df[price_column]
+
+        # Plotting the portfolio with shaded areas
+        plt.figure(figsize=(10, 6))
+        plt.plot(trading_history.index, trading_history['total_portfolio'], label='Total Portfolio', color='black')
+        plt.fill_between(trading_history.index, 0, trading_history['cash'], label='Cash', color='blue', alpha=0.3)
+        plt.fill_between(trading_history.index, trading_history['cash'], trading_history['total_portfolio'], label='Inventory Value', color='green', alpha=0.3)
+        
+        # Add labels and titles
+        plt.grid(True)
+        plt.title('Portfolio, Cash, and Inventory Value Over Time')
+        plt.xlabel('Time')
+        plt.ylabel('Value')
+        plt.legend(loc='upper left')
+
+        plt.show()
+
     return trading_history
 
 ######################################################################################################
