@@ -523,6 +523,7 @@ def generate_sample_weights(N, decay_rate=0.9):
     return weights
 
 from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
 
 def iterative_testing(df, y_col, model=LinearRegression(), start_point=10, plot=True, decay_weight=None):
     # df is dataframe with all of the predictor variables + response variable
@@ -584,6 +585,8 @@ def iterative_testing(df, y_col, model=LinearRegression(), start_point=10, plot=
         print('Buy/Sell (ignore hold) Accuracy: {:.4f}'.format(bs_acc))
         print('Buy Precision: {:.4f}'.format(b_pre))
         print('Sell Precision: {:.4f}'.format(s_pre))
+        
+        
     
     if plot:
         fig, axs = plt.subplots(3, 1, figsize=(8, 15))
