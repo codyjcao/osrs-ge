@@ -11,6 +11,8 @@ from datetime import datetime
 
 from osrsbox import items_api
 
+
+
 ####################################################################################
 
 items = items_api.load()
@@ -520,6 +522,8 @@ def generate_sample_weights(N, decay_rate=0.9):
     
     return weights
 
+from sklearn.metrics import confusion_matrix
+
 def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True, decay_weight=None):
     # df is dataframe with all of the predictor variables + response variable
     # specify the name of the response variable column into y_col
@@ -566,27 +570,46 @@ def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True
     df_err = pd.DataFrame({'errors': errors,
                            'predicted': preds,
                            'observed': obs}, index=index)
+
+    from sklearn.base import is_classifier
+    
+    if is_classifier(model):
+        cf_mat = confusion_matrix(df_err['observed'],df_err['predicted'],labels=[-1,0,1])
+        acc = (cf_mat[0,0]+cf_mat[1,1]+cf_mat[2,2])/(cf_mat.sum())
+        bs_acc = (cf_mat[0,0] + cf_mat[2,2])/(cf_mat[0,0] + cf_mat[0,2] + cf_mat[2,0] + cf_mat[2,2])
+        b_pre = cf_mat[2,2]/cf_mat[2].sum()
+        s_pre = cf_mat[0,0]/cf_mat[0].sum()
+
+        print('Overall Accuracy: {:.4f}'.format(acc))
+        print('Buy/Sell (ignore hold) Accuracy: {:.4f}'.format(bs_acc))
+        print('Buy Precision: {:.4f}'.format(b_pre))
+        print('Sell Precision: {:.4f}'.format(s_pre))
     
     if plot:
         fig, axs = plt.subplots(3, 1, figsize=(8, 15))
-        
-        df_err[['predicted', 'observed']].plot(ax=axs[0])
+
+        # Plot predicted vs. observed in the first subplot with different styles
+        axs[0].plot(df_err.index, df_err['predicted'], label='Predicted', color='blue', linestyle='-', marker='o')
+        axs[0].plot(df_err.index, df_err['observed'], label='Actual', color='green', linestyle='--', marker='x')
         axs[0].set_ylabel("% return")
         axs[0].set_title('Predicted vs. Actual returns over time')
         axs[0].grid()
-        
-        df_err.plot(x='predicted', y='observed', style='o', ax=axs[1])
+        axs[0].legend()
+
+        # Scatter plot for predicted vs. actual in the second subplot
+        df_err.plot(x='predicted', y='observed', style='o', ax=axs[1], color='purple')
         axs[1].set_xlabel('Predicted returns')
         axs[1].set_ylabel('Actual returns')
         axs[1].set_title('Predicted vs. Actual returns')
         axs[1].grid()
-    
-        df_err.plot(x='observed', y='errors', style='o', ax=axs[2])
+
+        # Scatter plot for errors vs. actual returns in the third subplot
+        df_err.plot(x='observed', y='errors', style='o', ax=axs[2], color='red')
         axs[2].set_xlabel('Actual returns')
         axs[2].set_ylabel('Prediction error')
         axs[2].set_title('Error vs. Actual returns')
         axs[2].grid()
-    
+
         plt.tight_layout()
         plt.show()
     
@@ -634,43 +657,13 @@ def compute_n_simple_return(df,n=1,col_name = 'VWAP'):
     return df    
 
 ######################################################################################################
-'''
-def trading_strategy_pnler(df,max_allowable = 2,start_stack = 0, signal_column = 'signal',price_column = 'VWAP_trade',tax_rate = .01,plot=True):
+
+def trading_strategy_pnler(df, max_allowable=2, start_stack=10e6, signal_column='signal', price_column='VWAP_trade', tax_rate=.01, plot=True):
     # df should have the signal and VWAP columns already
-    inv = 0
-    stack = start_stack
-
-    eff_sale_mult = 1 - tax_rate
+    assert(signal_column in df.columns)
+    assert(price_column in df.columns)
+    assert(start_stack > 0)
     
-    trading_history = pd.DataFrame()
-    
-    for idx,row in df.iterrows():
-        if row[signal_column] == 1 and inv < max_allowable:  # buy signal and we are not at inventory capacity
-            stack -= row[price_column]
-            inv += 1
-        elif row[signal_column] == -1 and inv > 0:       # sell signal and we have positive inventory
-            stack += row[price_column]*eff_sale_mult
-            inv -= 1
-        else:
-            pass
-        
-        trading_history.loc[idx,'inventory'] = inv
-        trading_history.loc[idx,'stack'] = stack
-        trading_history.loc[idx,'total_portfolio'] = stack + inv*row[price_column]
-
-    if plot:
-        trading_history['cash'] = trading_history['stack']
-        trading_history['inventory_value'] = trading_history['inventory'] * df[price_column]
-        
-        trading_history[['total_portfolio', 'cash', 'inventory_value']].plot()
-        plt.grid()
-        plt.title('Portfolio, Cash, and Inventory Value Over Time')
-    
-    return trading_history
-'''
-
-def trading_strategy_pnler(df, max_allowable=2, start_stack=0, signal_column='signal', price_column='VWAP_trade', tax_rate=.01, plot=True):
-    # df should have the signal and VWAP columns already
     inv = 0
     stack = start_stack
 
@@ -678,18 +671,19 @@ def trading_strategy_pnler(df, max_allowable=2, start_stack=0, signal_column='si
     trading_history = pd.DataFrame()
 
     for idx, row in df.iterrows():
-        if row[signal_column] == 1 and inv < max_allowable:  # buy signal and we are not at inventory capacity
-            stack -= row[price_column]
+        price = row[price_column]
+        if row[signal_column] == 1 and inv < max_allowable and stack >= price:  # buy signal and we are not at inventory capacity
+            stack -= price
             inv += 1
         elif row[signal_column] == -1 and inv > 0:  # sell signal and we have positive inventory
-            stack += row[price_column] * eff_sale_mult
+            stack += price * eff_sale_mult
             inv -= 1
         else:
             pass
 
         trading_history.loc[idx, 'inventory'] = inv
         trading_history.loc[idx, 'stack'] = stack
-        trading_history.loc[idx, 'total_portfolio'] = stack + inv * row[price_column]
+        trading_history.loc[idx, 'total_portfolio'] = stack + inv * price
 
     if plot:
         # Create columns for cash and inventory value
@@ -710,7 +704,10 @@ def trading_strategy_pnler(df, max_allowable=2, start_stack=0, signal_column='si
         plt.legend(loc='upper left')
 
         plt.show()
-
+    
+    sharpe = (trading_history['total_portfolio'].iloc[-1]/start_stack - 1)/trading_history['total_portfolio'].std()
+    print('Sharpe Ratio: {:4f}'.format(sharpe))
+    
     return trading_history
 
 ######################################################################################################
