@@ -11,8 +11,6 @@ from datetime import datetime
 
 from osrsbox import items_api
 
-
-
 ####################################################################################
 
 items = items_api.load()
@@ -250,12 +248,14 @@ def update_all_items(directory = 'Master Files/items'):
 #####################################################################
 # Price features for 
 ## VWAP
-def compute_VWAP(df,high_p_name = 'avgHighPrice',low_p_name = 'avgLowPrice',low_v_name = 'lowPriceVolume', high_v_name = 'highPriceVolume'):
+def compute_VWAP(df,
+                 high_p_name = 'avgHighPrice',
+                 low_p_name = 'avgLowPrice',
+                 low_v_name = 'lowPriceVolume',
+                 high_v_name = 'highPriceVolume'):
     df['VWAP'] = ((df[high_p_name] * df[high_v_name] + df[low_p_name] * df[low_v_name])/
                  (df[high_v_name] + df[low_v_name]))
 
-    
-    
     return df
 
 ## Moving averages
@@ -524,14 +524,14 @@ def generate_sample_weights(N, decay_rate=0.9):
 
 from sklearn.metrics import confusion_matrix
 
-def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True, decay_weight=None):
+def iterative_testing(df, y_col, model=LinearRegression(), start_point=10, plot=True, decay_weight=None):
     # df is dataframe with all of the predictor variables + response variable
     # specify the name of the response variable column into y_col
     
-    X_tr = df.drop(y_col,axis=1).values
+    X_tr = df.drop(y_col, axis=1).values
     y_tr = df[y_col].values
     feature_shape = X_tr.shape[1]
-    start_point = max(feature_shape+5,start_point)
+    start_point = max(feature_shape + 5, start_point)
     errors = []
     preds = []
     obs = []
@@ -541,19 +541,19 @@ def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True
     _X = X_tr[:start_point]
     _y = y_tr[:start_point]
     
-    for i in range(start_point,X_tr.shape[0]-1):
+    for i in range(start_point, X_tr.shape[0] - 1):
         # train on data up to i-1
         _X = np.vstack([_X, X_tr[i]])
         _y = np.append(_y, y_tr[i])
 
         # Generate weights if decay_weight is provided
         if decay_weight is not None:
-            weights = generate_sample_weights(_X.shape[0],decay_rate=decay_weight)
+            weights = generate_sample_weights(_X.shape[0], decay_rate=decay_weight)
         else:
-            weights = [1]*_X.shape[0] # Equal weights
+            weights = [1] * _X.shape[0]  # Equal weights
 
         # Fit the model on the updated training data
-        model_fit = clone(model).fit(_X,_y,sample_weight = weights)
+        model_fit = clone(model).fit(_X, _y, sample_weight=weights)
         
         # predict i
         x_predict = X_tr[[i]]
@@ -574,11 +574,11 @@ def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True
     from sklearn.base import is_classifier
     
     if is_classifier(model):
-        cf_mat = confusion_matrix(df_err['observed'],df_err['predicted'],labels=[-1,0,1])
-        acc = (cf_mat[0,0]+cf_mat[1,1]+cf_mat[2,2])/(cf_mat.sum())
-        bs_acc = (cf_mat[0,0] + cf_mat[2,2])/(cf_mat[0,0] + cf_mat[0,2] + cf_mat[2,0] + cf_mat[2,2])
-        b_pre = cf_mat[2,2]/cf_mat[2].sum()
-        s_pre = cf_mat[0,0]/cf_mat[0].sum()
+        cf_mat = confusion_matrix(df_err['observed'], df_err['predicted'], labels=[-1, 0, 1])
+        acc = (cf_mat[0, 0] + cf_mat[1, 1] + cf_mat[2, 2]) / (cf_mat.sum())
+        bs_acc = (cf_mat[0, 0] + cf_mat[2, 2]) / (cf_mat[0, 0] + cf_mat[0, 2] + cf_mat[2, 0] + cf_mat[2, 2])
+        b_pre = cf_mat[2, 2] / cf_mat[2].sum()
+        s_pre = cf_mat[0, 0] / cf_mat[0].sum()
 
         print('Overall Accuracy: {:.4f}'.format(acc))
         print('Buy/Sell (ignore hold) Accuracy: {:.4f}'.format(bs_acc))
@@ -588,23 +588,23 @@ def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True
     if plot:
         fig, axs = plt.subplots(3, 1, figsize=(8, 15))
 
-        # Plot predicted vs. observed in the first subplot with different styles
-        axs[0].plot(df_err.index, df_err['predicted'], label='Predicted', color='blue', linestyle='-', marker='o')
-        axs[0].plot(df_err.index, df_err['observed'], label='Actual', color='green', linestyle='--', marker='x')
+        # Plot predicted vs. observed in the first subplot with different styles and transparency (alpha)
+        axs[0].plot(df_err.index, df_err['predicted'], label='Predicted', color='blue', linestyle='-', marker='o', alpha=0.7)
+        axs[0].plot(df_err.index, df_err['observed'], label='Actual', color='green', linestyle='--', marker='x', alpha=0.7)
         axs[0].set_ylabel("% return")
         axs[0].set_title('Predicted vs. Actual returns over time')
         axs[0].grid()
         axs[0].legend()
 
-        # Scatter plot for predicted vs. actual in the second subplot
-        df_err.plot(x='predicted', y='observed', style='o', ax=axs[1], color='purple')
+        # Scatter plot for predicted vs. actual in the second subplot with transparency (alpha)
+        df_err.plot(x='predicted', y='observed', style='o', ax=axs[1], color='purple', alpha=0.7)
         axs[1].set_xlabel('Predicted returns')
         axs[1].set_ylabel('Actual returns')
         axs[1].set_title('Predicted vs. Actual returns')
         axs[1].grid()
 
-        # Scatter plot for errors vs. actual returns in the third subplot
-        df_err.plot(x='observed', y='errors', style='o', ax=axs[2], color='red')
+        # Scatter plot for errors vs. actual returns in the third subplot with transparency (alpha)
+        df_err.plot(x='observed', y='errors', style='o', ax=axs[2], color='red', alpha=0.7)
         axs[2].set_xlabel('Actual returns')
         axs[2].set_ylabel('Prediction error')
         axs[2].set_title('Error vs. Actual returns')
@@ -613,8 +613,8 @@ def iterative_testing(df,y_col,model=LinearRegression(),start_point=10,plot=True
         plt.tight_layout()
         plt.show()
     
-    reg_eploss = elliptic_paraboloid_loss(df_err['predicted'],df_err['observed']).mean()
-    reg_mse = (df_err['errors']**2).mean()
+    reg_eploss = elliptic_paraboloid_loss(df_err['predicted'], df_err['observed']).mean()
+    reg_mse = (df_err['errors'] ** 2).mean()
     print("Mean EPLoss: ", reg_eploss)
     print("MSE: ", reg_mse)
     return df_err
@@ -702,13 +702,28 @@ def trading_strategy_pnler(df, max_allowable=2, start_stack=10e6, signal_column=
         plt.xlabel('Time')
         plt.ylabel('Value')
         plt.legend(loc='upper left')
-
+        
         plt.show()
     
-    sharpe = (trading_history['total_portfolio'].iloc[-1]/start_stack - 1)/trading_history['total_portfolio'].std()
+    strategy_returns = trading_history['total_portfolio']/trading_history['total_portfolio'].shift(1)
+    sharpe = strategy_returns.mean()/strategy_returns.std()
     print('Sharpe Ratio: {:4f}'.format(sharpe))
     
     return trading_history
+
+######################################################################################################
+
+'''
+function (df, model, y_col = 'signal_y',features = None)
+    # df would probably contain prices?
+    # if features is None: everything but the y_col is a feature to be used
+    # call iterative_testing() for predictions
+    # call trading_strategy_pnler() for backtesting the strategy
+    # plotted graphs
+    # return the resulting dataframe of predictions and results
+    # return the trained model as well
+
+'''
 
 ######################################################################################################
 
