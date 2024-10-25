@@ -153,7 +153,7 @@ def update_CTI_master_file(interval='24h',return_df = True):
 def compute_CTI(df=None,interval='24h'):
     if df is None:
         df = read_CTI_master_file(interval=interval)
-        df = compute_VWAP(df)
+        compute_VWAP(df)
     
     df_index_px = pd.read_excel('index_start_px.xlsx',index_col='id',names = ['name','id','start_px'])
     df_index_px['weight'] = 1/df_index_px['start_px']
@@ -256,13 +256,10 @@ def compute_VWAP(df,
     df['VWAP'] = ((df[high_p_name] * df[high_v_name] + df[low_p_name] * df[low_v_name])/
                  (df[high_v_name] + df[low_v_name]))
 
-    return df
-
 ## Moving averages
 ### Simple moving average
 def compute_SMA(df,window = 5,col_name = 'VWAP'):
     df[col_name + '_sma'+str(window)] = df[col_name].rolling(window=window).mean()
-    return df
 
 ## RSI
 def _helper_RSI(x):
@@ -282,7 +279,6 @@ def _helper_RSI(x):
 def compute_RSI(df,window=14,col_name = 'VWAP'):
     df[col_name + '_diff'] = df[col_name].diff()
     df[col_name + '_RSI'+str(window)] = df[col_name + '_diff'].rolling(window=window).apply(_helper_RSI)
-    return df
 
 
 ## MACD
@@ -300,12 +296,10 @@ def compute_MACD(df,st_n = 4,lt_n = 10,drop_ema_cols = False,col_name = 'VWAP',*
     df[col_name + '_MACD_{0}_{1}'.format(str(st_n),str(lt_n))] = df[st_ema_col_name] - df[lt_ema_col_name]
 
     if drop_ema_cols:
-        return df.drop([st_ema_col_name, lt_ema_col_name],axis=1)
-    
-    return df
+        df.drop([st_ema_col_name, lt_ema_col_name],axis=1,inplace=True)
 
 
-def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16, drop_cols = True):
+def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SMA_window=5, drop_cols = True,inplace=False):
     '''
     returns dataframe with the following features:
         lagged returns
@@ -323,7 +317,7 @@ def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16, d
         df['simpRet_'+str(k)] = df['simpRet_y'].shift(k)
     
     ##### RSI
-    df = compute_RSI(df,window = RSI_window,col_name = 'VWAP')
+    compute_RSI(df,window = RSI_window,col_name = 'VWAP')
     
     ##### Order Imbalance
     df['OI'] = df['highPriceVolume'] -  df['lowPriceVolume']
@@ -341,7 +335,7 @@ def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16, d
     
     
     ##### MACD
-    df = compute_MACD(df,st_n=MACD_short,lt_n=MACD_long, drop_ema_cols = False)
+    compute_MACD(df,st_n=MACD_short,lt_n=MACD_long, drop_ema_cols = False)
     df['VWAP/ema'+str(MACD_short)] = df['VWAP']/df['VWAP_ema'+str(MACD_short)]
     df['VWAP/ema'+str(MACD_long)] = df['VWAP']/df['VWAP_ema'+str(MACD_long)]
     df['VWAP_nMACD_{0}_{1}'.format(MACD_short,MACD_long)] = df['VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)]/df['VWAP']
@@ -351,8 +345,9 @@ def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16, d
         df = df.drop(['timestamp','avgHighPrice','avgLowPrice','highPriceVolume',
                 'lowPriceVolume','VWAP','VWAP_diff','OI*','Spread','VWAP_ema'+str(MACD_short),
                 'VWAP_ema'+str(MACD_long),'VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)],axis=1)
-
-    return df
+        
+    if not inplace:
+        return df
 
 
 ###########################################################################
