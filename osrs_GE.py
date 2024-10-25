@@ -299,7 +299,7 @@ def compute_MACD(df,st_n = 4,lt_n = 10,drop_ema_cols = False,col_name = 'VWAP',*
         df.drop([st_ema_col_name, lt_ema_col_name],axis=1,inplace=True)
 
 
-def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SMA_window=5, drop_cols = True,inplace=False):
+def compute_features(DF,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SMA_window=5, drop_cols = True,inplace=False):
     '''
     returns dataframe with the following features:
         lagged returns
@@ -311,6 +311,10 @@ def compute_features(df,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SM
         VWAP/VWAP_EMA: as determined by the MACD short/long parameters
         MA: moving average
     '''
+    if not inplace:
+        df = DF.copy()
+    else:
+        df = DF
     
     ##### Lagged returns
     for k in range(1,lagged_rets+1):
