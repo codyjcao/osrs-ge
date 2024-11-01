@@ -144,6 +144,7 @@ Q_s, Q_b = (-.0075,.005)
 # inventory limit, might be some cleverer way of auto-setting this depending
 # on the actual price of the item
 inv_limit = 500    
+start_stack = 10e6
 
 for order in orders:
     print(order)
