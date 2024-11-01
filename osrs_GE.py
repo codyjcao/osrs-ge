@@ -56,6 +56,123 @@ def search_item_id():
 
 ####################################################################################
 
+def read_master_file(interval='24h',create=True):
+    filepath = 'Master Files/master_file_{}.csv'.format(interval)
+    save = False
+    try:
+        # Attempt to load the file
+        df = pd.read_csv(filepath)
+    except FileNotFoundError:
+        if create:
+            df = pd.DataFrame()  # Empty DataFrame for accumulation
+            print(f"File does not exist, creating from scratch for interval {interval}")
+            price_data = []
+            
+            for row in df_index.itertuples(index=False):
+                item_id = row[1]
+                try:
+                    price_history = create_price_df(item_id, interval)
+                    price_history.fillna(0, inplace=True)  # Fill NaNs immediately after creation
+                    price_data.append(price_history)
+                except Exception as e:
+                    print(f"Skipping item id {item_id}: {e}")
+                    continue
+            
+            # Concatenate all data at once for better performance
+            df = pd.concat(price_data, ignore_index=True)
+            save = True
+        else:
+            print("Returning None. Specify create=True to create DataFrame from scratch.")
+            return None
+    except pd.errors.ParserError as e:
+        print(f"Error reading CSV file: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return None
+        
+    # Convert 'date' to datetime and set MultiIndex
+    df['date'] = pd.to_datetime(df['date'])
+    df.set_index(['id', 'date'], inplace=True)
+    df.index = df.index.set_levels(pd.DatetimeIndex(df.index.levels[1].values,
+                                                    freq=df.index.levels[1].inferred_freq),level=1)
+    
+    #### when there is no volume at the low price or high price
+    df = df.fillna(0)
+    df = df.sort_index()
+    
+    # Save to CSV if new file was created
+    if save:
+        with open(filepath, 'w') as f:
+            df.to_csv(f)
+        print(f"File saved to {filepath}")
+        
+    return df
+
+
+def update_master_file(interval='24h', return_df=True):
+    # Load the existing master file
+    df = read_master_file(interval=interval)
+    additional_data = []
+
+    for item_id in df_index['id'].unique():
+        item_name = item_name_from_id(item_id)
+        print(f'Retrieving data for item {item_id} ({item_name})')
+
+        try:
+            # Retrieve data and handle missing values inline
+            temp_df = create_price_df(int(item_id), interval).fillna(0)
+            additional_data.append(temp_df)
+            print(f'Item {item_id} ({item_name}) data retrieved successfully')
+        except Exception as e:
+            print(f'Item {item_id} ({item_name}) retrieval failed: {e}')
+            continue
+
+    # Concatenate all new data at once for performance
+    if additional_data:
+        df_add = pd.concat(additional_data, ignore_index=True)
+        df_add.set_index(['id', 'date'], inplace=True)
+
+        # Combine with the existing data, remove duplicates, and sort
+        df = pd.concat([df, df_add]).drop_duplicates(keep='last').sort_index()
+
+    # Save the updated master file with a context manager
+    filepath = f'Master Files/master_file_{interval}.csv'
+    with open(filepath, 'w') as f:
+        df.to_csv(f)
+    print(f"Saving file... {filepath}")
+
+    if return_df:
+        return df
+
+def load_item_ts(item_id,interval):
+    DF = read_master_file(interval)
+    item_name = item_name_from_id(item_id)
+    
+    if item_id in DF.index.get_level_values('id'):
+        return DF.loc[item_id]
+
+    print(f'{item_name} does not exist in our dataset. Retrieving now...')
+    try:
+        df_to_add = create_price_df(item_id,interval).fillna(0)
+        
+    except Exception as e:
+        print(f'Item {item_id} ({item_name}) retrieval failed: {e}')
+
+    df_to_add.set_index(['id','date'],inplace=True)
+    df_to_add.sort_index(inplace=True)
+    DF = pd.concat([DF,df_to_add])
+
+    with open(f'Master Files/master_file_{interval}.csv','w') as f:
+        DF.to_csv(f)
+
+    print(f'File saved to Master Files/master_file_{interval}.csv')
+    
+    return df_to_add.loc[item_id]
+
+
+####################################################################################
+
 def call_http_historical_prices(item_id = 1,interval = '24h'):
     headers = {
         'User-Agent': 'Flipping Price',
@@ -84,43 +201,60 @@ def create_price_df(item_id,interval='24h'):
     return res
 
 
+
+
+
 def read_CTI_master_file(interval='24h',create=True):
     filepath = 'Master Files/CTI_master_file_{}.csv'.format(interval)
     save = False
     try:
+        # Attempt to load the file
         df = pd.read_csv(filepath)
     except FileNotFoundError:
         if create:
-            df = pd.DataFrame()
-            print("File does not exist, creating from scratch for interval {0}".format(interval))
+            df = pd.DataFrame()  # Empty DataFrame for accumulation
+            print(f"File does not exist, creating from scratch for interval {interval}")
+            price_data = []
+            
             for row in df_index.itertuples(index=False):
+                item_id = row[1]
                 try:
-                    price_history = create_price_df(row[1],interval)
-                except:
-                    print('Skipping item id {0}'.format(item_id))
+                    price_history = create_price_df(item_id, interval)
+                    price_history.fillna(0, inplace=True)  # Fill NaNs immediately after creation
+                    price_data.append(price_history)
+                except Exception as e:
+                    print(f"Skipping item id {item_id}: {e}")
                     continue
-                price_history.fillna(0)
-                df = pd.concat([df,price_history])
+            
+            # Concatenate all data at once for better performance
+            df = pd.concat(price_data, ignore_index=True)
             save = True
         else:
-            print("Returning nothing, specify create = True to create dataframe from scratch")
+            print("Returning None. Specify create=True to create DataFrame from scratch.")
             return None
-    except:
-        print("Something went wrong")
-            
-    df['date'] = pd.to_datetime(df['date'])    
-    df.index = pd.MultiIndex.from_frame(df[['id','date']])
+    except pd.errors.ParserError as e:
+        print(f"Error reading CSV file: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return None
+        
+    # Convert 'date' to datetime and set MultiIndex
+    df['date'] = pd.to_datetime(df['date'])
+    df.set_index(['id', 'date'], inplace=True)
     df.index = df.index.set_levels(pd.DatetimeIndex(df.index.levels[1].values,
                                                     freq=df.index.levels[1].inferred_freq),level=1)
-    df.drop(['id','date'],axis=1,inplace=True)
     
     #### when there is no volume at the low price or high price
     df = df.fillna(0)
-    
     df = df.sort_index()
+    
+    # Save to CSV if new file was created
     if save:
-        df.to_csv(filepath)
-        print("Saving file to {0}".format(filepath))
+        with open(filepath, 'w') as f:
+            df.to_csv(f)
+        print(f"File saved to {filepath}")
+        
     return df
 
 def update_CTI_master_file(interval='24h',return_df = True):
@@ -150,22 +284,31 @@ def update_CTI_master_file(interval='24h',return_df = True):
     if return_df:
         return df
 
-def compute_CTI(df=None,interval='24h'):
+def compute_CTI(df=None, interval='24h'):
     if df is None:
-        df = read_CTI_master_file(interval=interval)
+        df = read_master_file(interval=interval)
         compute_VWAP(df)
     
-    df_index_px = pd.read_excel('index_start_px.xlsx',index_col='id',names = ['name','id','start_px'])
-    df_index_px['weight'] = 1/df_index_px['start_px']
-    INDEX_MULT = 100.0/df_index_px.shape[0]
-    df = df.filter(['VWAP'])
-    earliest = df.groupby(by='id').apply(lambda x:x.index.get_level_values(1).min()).max()
-    df = df.loc[df.index.get_level_values(1)>=earliest]
+    # Load index start prices and weights
+    df_index_px = pd.read_excel('index_start_px.xlsx', index_col='id', names=['name', 'id', 'start_px'])
+    df_index_px['weight'] = 1 / df_index_px['start_px']
+    INDEX_MULT = 100.0 / df_index_px.shape[0]
 
-    df = pd.merge(df,df_index_px,how='left',left_on='id',right_index=True)
-    
+    # Filter for VWAP data and set the earliest common date
+    df = df.filter(['VWAP'])
+    earliest = df.groupby(by='id').apply(lambda x: x.index.get_level_values(1).min()).max()
+    df = df.loc[df.index.get_level_values(1) >= earliest]
+
+    # Reset index to allow merging
+    df = df.reset_index()  # `id` and `date` become columns now
+    df = df.merge(df_index_px, how='inner', on='id')  # Perform the merge
+
+    # Restore the MultiIndex
+    df.set_index(['id', 'date'], inplace=True)
+
+    # Calculate the index contribution and the CTI index
     df['index_ctrb'] = df['weight'] * df['VWAP']
-    CTI_px = df.groupby('date')['index_ctrb'].sum()*INDEX_MULT
+    CTI_px = df.groupby('date')['index_ctrb'].sum() * INDEX_MULT
     return CTI_px.rename('CTI_px')
 
     
