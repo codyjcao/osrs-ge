@@ -442,7 +442,10 @@ def compute_MACD(df,st_n = 4,lt_n = 10,drop_ema_cols = False,col_name = 'VWAP',*
         df.drop([st_ema_col_name, lt_ema_col_name],axis=1,inplace=True)
 
 
-def compute_features(DF,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SMA_window=5, drop_cols = True,inplace=False):
+def compute_TA_features(DF,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SMA_window=5, inplace=False, drop_cols = True):
+
+    assert('VWAP' in DF.columns)
+    
     '''
     returns dataframe with the following features:
         lagged returns
@@ -460,9 +463,71 @@ def compute_features(DF,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SM
         df = DF
     
     ##### Lagged returns
-    for k in range(1,lagged_rets+1):
-        df['simpRet_'+str(k)] = df['simpRet_y'].shift(k)
+    if lagged_rets > 0:
+        for k in range(1,lagged_rets+1):
+            df['simpRet_'+str(k)] = df['simpRet_y'].shift(k)
     
+    ##### RSI
+    compute_RSI(df,window = RSI_window,col_name = 'VWAP')
+    
+    ##### Order Imbalance
+    df['OI'] = df['highPriceVolume'] -  df['lowPriceVolume']
+    df['OI*'] = df['OI']*((df['avgHighPrice'] > df['avgLowPrice'])*1 - (df['avgHighPrice'] < df['avgLowPrice']))
+    df['OI_ratio'] = df['OI']/(df['highPriceVolume'] + df['lowPriceVolume'])
+    
+    
+    ##### Spread
+    df['Spread'] = df['avgHighPrice'] - df['avgLowPrice']
+    df['SpreadPct'] = df['Spread']/df['VWAP']
+    
+    
+    ##### "Cross Metric" - interaction between the OI and the actively traded price spread
+    df['CM'] = df['SpreadPct']*df['OI']
+    
+    
+    ##### MACD
+    compute_MACD(df,st_n=MACD_short,lt_n=MACD_long, drop_ema_cols = False)
+    df['VWAP/ema'+str(MACD_short)] = df['VWAP']/df['VWAP_ema'+str(MACD_short)]
+    df['VWAP/ema'+str(MACD_long)] = df['VWAP']/df['VWAP_ema'+str(MACD_long)]
+    df['VWAP_nMACD_{0}_{1}'.format(MACD_short,MACD_long)] = df['VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)]/df['VWAP']
+
+
+    if drop_cols:
+        df.drop(['timestamp','avgHighPrice','avgLowPrice','highPriceVolume',
+            'lowPriceVolume','VWAP','VWAP_diff','OI*','Spread','VWAP_ema'+str(MACD_short),
+            'VWAP_ema'+str(MACD_long),'VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)],axis=1,inplace=True)
+
+    if not inplace:
+        return df
+
+
+
+#### would like to deprecate this and specifically name this compute_TA_features
+def compute_features(DF,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SMA_window=5, drop_cols = True, inplace=False):
+
+    assert('VWAP' in DF.columns)
+    
+    '''
+    returns dataframe with the following features:
+        lagged returns
+        RSI
+        OI/OI_ratio: order imbalance
+        Spread
+        SpreadPct
+        CM (Cross Metric)
+        VWAP/VWAP_EMA: as determined by the MACD short/long parameters
+        MA: moving average
+    '''
+    if not inplace:
+        df = DF.copy()
+    else:
+        df = DF
+    
+    ##### Lagged returns
+    if lagged_rets > 0:
+        for k in range(1,lagged_rets+1):
+            df['simpRet_'+str(k)] = df['simpRet_y'].shift(k)
+        
     ##### RSI
     compute_RSI(df,window = RSI_window,col_name = 'VWAP')
     
@@ -489,9 +554,9 @@ def compute_features(DF,lagged_rets=5,RSI_window=10,MACD_short=4,MACD_long=16,SM
 
     
     if drop_cols:
-        df = df.drop(['timestamp','avgHighPrice','avgLowPrice','highPriceVolume',
-                'lowPriceVolume','VWAP','VWAP_diff','OI*','Spread','VWAP_ema'+str(MACD_short),
-                'VWAP_ema'+str(MACD_long),'VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)],axis=1)
+        df.drop(['timestamp','avgHighPrice','avgLowPrice','highPriceVolume',
+            'lowPriceVolume','VWAP','VWAP_diff','OI*','Spread','VWAP_ema'+str(MACD_short),
+            'VWAP_ema'+str(MACD_long),'VWAP_MACD_{0}_{1}'.format(MACD_short,MACD_long)],axis=1,inplace=True)
         
     if not inplace:
         return df
