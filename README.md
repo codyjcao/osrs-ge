@@ -1,1 +1,1 @@
-
+osrs_ML_trading_strategy.ipynb - runs through some various regressions and Random Forest Classification models for return prediction and buy/sell/hold classification with volume features and technical indicators
